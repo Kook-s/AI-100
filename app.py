@@ -1,145 +1,140 @@
-import os
-from openai import OpenAI
 import streamlit as st
-import json
+from openai import OpenAI
+import os
 
 # OpenAI API 키 설정
 os.environ["OPENAI_API_KEY"] = st.secrets['API_KEY']
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
-# 텍스트 파일의 경로를 지정합니다.
-file_path = './info.txt'
-selected_text = ''
-inpitbox = ''
-html_content = ''
+# 웹페이지 제목 및 스타일 설정
+st.markdown("""
+    <style>
+        .title {
+            font-size: 3em;
+            # color: #4A90E2;
+            # text-align: center;
+            margin-bottom: 20px;
+        }
+        .stSelectbox, .stMultiselect {
+            font-size: 1.2em;
+        }
+        .stButton button {
+            background-color: #4A90E2;
+            color: white;
+            font-size: 1.2em;
+            padding: 10px 20px;
+            border-radius: 5px;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-left_column, right_column = st.columns([1.5, 3])  # 비율을 조정하여 왼쪽이 작고 오른쪽이 크게
+# 웹페이지 제목
+st.markdown('<div class="title">🎨 Your season</div>', unsafe_allow_html=True)
 
-# 왼쪽 컬럼에 콘텐츠 추가
-with left_column:
-    st.image('./excuseMate.png', caption='', use_column_width=True)
-    st.write('')
-    st.markdown('<div class="left-column-fixed">', unsafe_allow_html=True)
-    # JSON 파일 읽기
-    with open('options.json', 'r', encoding='utf-8') as f:
-        st.write('1. 선택해주세요.')
-        options_data = json.load(f)
+# 선택 항목 정의
+genders = ["남성", "여성", "기타"]
+styles = ["캐주얼", "포멀", "스포츠", "빈티지", "모던"]
+hair_styles_male = ["댄디", "청량한", "투블럭", "레이어드", "웨이브", "머리 연장", "댄스 헤어"]
+hair_styles_female = ["긴 머리", "단발", "포니테일", "레이어드", "웨이브"]
+hair_styles_other = ["긴 머리", "단발", "포니테일", "댄디", "청량한", "투블럭", "레이어드", "웨이브", "머리 연장", "댄스 헤어"]
+seasons = ["봄", "여름", "가을", "겨울"]
+skin_tones = ["밝은 피부", "중간 피부", "어두운 피부"]
 
-    # JSON에서 카테고리와 키워드 리스트 추출
-    categories = options_data['personas']
+# 성별 선택에 따른 헤어 스타일 업데이트
+selected_gender = st.selectbox("성별을 선택하세요", genders)
 
-    # 세션 상태 초기화
-    if 'selected_options' not in st.session_state:
-        st.session_state.selected_options = []
+if selected_gender == "남성":
+    hair_styles = hair_styles_male
+elif selected_gender == "여성":
+    hair_styles = hair_styles_female
+else:
+    hair_styles = hair_styles_other
 
-    if 'category_selected_options' not in st.session_state:
-        st.session_state.category_selected_options = {category['category']: None for category in categories}
+selected_season = st.selectbox("*계절을 선택하세요.", seasons)
+selected_styles = st.multiselect("*평소에 입는 스타일을 선택하세요.", styles)
+selected_hair_style = st.selectbox("*선호하는 헤어 스타일을 선택하세요.", hair_styles)
 
-    if 'custom_inputs' not in st.session_state:
-        st.session_state.custom_inputs = {category['category']: "" for category in categories}
+# 피부 톤 선택 (색상 선택 기능 추가)
+selected_skin_tone = st.selectbox("*피부 톤을 선택하세요.", skin_tones)
+custom_skin_tone = st.color_picker("*혹은 피부 톤을 직접 선택하세요.", "#f1c27d")
 
-    if 'expand_state' not in st.session_state:
-        st.session_state.expand_state = {category['category']: idx == 0 for idx, category in enumerate(categories)}
+# 이미지 업로드 또는 촬영
+uploaded_image = st.file_uploader("사진을 업로드하거나 촬영하세요. (필수 X)", type=["jpg", "jpeg", "png"])
 
-    def update_options(category, keyword):
-        if st.session_state[f"{category}_{keyword}"]:
-            st.session_state.category_selected_options[category] = keyword
-            if keyword == "직접 입력":
-                st.session_state.custom_inputs[category] = st.session_state.get(f"{category}_custom_input", "")
-            else:
-                st.session_state.custom_inputs[category] = ""
-        else:
-            st.session_state.category_selected_options[category] = None
-            st.session_state.custom_inputs[category] = ""
-
-        st.session_state.selected_options = [
-            (category['category'], keyword) for category in categories for keyword in category['keywords'] if st.session_state.get(f"{category['category']}_{keyword}", False) and keyword != "직접 입력"
-        ]
-        st.session_state.selected_options += [
-            (category, st.session_state.custom_inputs[category]) for category in st.session_state.custom_inputs if st.session_state.custom_inputs[category]
-        ]
-
-        # 다음 카테고리를 열기 위해 확장 상태 업데이트
-        for idx, cat in enumerate(categories):
-            if cat['category'] == category:
-                if idx + 1 < len(categories):
-                    next_category = categories[idx + 1]['category']
-                    st.session_state.expand_state[next_category] = True
-                    break
-
-    # 카테고리별로 토글 생성
-    for idx, category in enumerate(categories):
-        expanded = st.session_state.expand_state[category['category']]
-        with st.expander(category['category'], expanded=expanded):
-            cols = st.columns(4)  # 각 카테고리 내에서 키워드들을 4열로 나눠 배치
-            for idx, keyword in enumerate(category['keywords']):
-                key = f"{category['category']}_{keyword}"
-                selected_key = st.session_state.category_selected_options[category['category']]
-                disabled = selected_key is not None and selected_key != keyword
-                with cols[idx % 4]:
-                    if st.checkbox(keyword, key=key, value=st.session_state.get(key, False), on_change=update_options, args=(category['category'], keyword), disabled=disabled):
-                        update_options(category['category'], keyword)
-            if st.session_state.category_selected_options[category['category']] == "직접 입력":
-                custom_input = st.text_input("직접 입력:", key=f"{category['category']}_custom_input", value=st.session_state.custom_inputs[category['category']], on_change=update_options, args=(category['category'], "직접 입력"))
-                st.session_state.custom_inputs[category['category']] = custom_input
-
-    # 선택된 옵션들을 특정 형식으로 표시
-    final_options = [option for category, option in st.session_state.selected_options if option]
-
-    if final_options:
-        if len(final_options) == 1:
-            selected_text = f"[{final_options[0]}]인 상대방과 대화할 수 있도록 해주세요."
-        else:
-            selected_text = "이고, ".join([f"[{option}]" for option in final_options[:-1]]) + f"이며, [{final_options[-1]}]인 상대방과 대화할 수 있도록 해주세요."
+# 모든 필수 항목이 선택되었는지 확인
+if st.button("퍼스널 컬러 추천 받기"):
+    if not selected_styles:
+        st.warning("스타일을 최소 한 개 이상 선택해야 합니다.")
     else:
-        selected_text = ""
-
-    # 결과를 텍스트 박스에 표시
-    st.text_area("선택 결과", value=selected_text, height=100)
-
-# 오른쪽 컬럼에 콘텐츠 추가
-with right_column:
-    with st.expander("", expanded=True):
-        st.write("2. 변명을 생성을 해주세요.")
-        keyworld = st.text_input("키워드를 입력하세요", label_visibility="collapsed")
-
-        right_left_column, right_right_column = st.columns([1.5, 11])  # 비율을 조정하여 왼쪽이 작고 오른쪽이 크게
-
-    with right_left_column:
-        if st.button('변명 생성'):
+        skin_tone = selected_skin_tone if selected_skin_tone != "기타" else custom_skin_tone
+        user_input = f"""
+        계절: {selected_season}
+        스타일: {', '.join(selected_styles)}
+        헤어 스타일: {selected_hair_style}
+        피부 톤: {skin_tone}
+        성별: {selected_gender}
+        """
+        
+        with st.spinner('결과를 생성 중입니다...'):
+            # GPT-4를 사용하여 퍼스널 컬러 텍스트 생성
             chat_completion = client.chat.completions.create(
+                model="gpt-4",
                 messages=[
                     {
                         "role": "user",
-                        "content": selected_text + keyworld,
-                    },
-                    {
-                        "role": "system",
-                        "content": '여러분은 저와 가볍고 캐주얼한 대화를 나누는 대화 파트너입니다. 우리의 상호 작용은 내 콘텐츠의 일부가 될 것이므로 대화가 자연스럽고 정형화되지 않은 느낌을 주었으면 합니다. 제가 질문을 할 때는 정해진 답변을 하지 마세요. 대신 친근한 대화를 나누는 것처럼 응답하세요. 대화를 통해 생각을 확장하고 새로운 아이디어를 탐색할 수 있도록 도와주세요. 구조화된 답변, 목록 또는 글머리 기호는 사용하지 마세요. 대화가 자연스럽게 흐르도록 하세요. 항상 내 질문에 공감하고 대화를 계속할지, 아니면 질문을 다시 나에게 돌려서 답변할지 고민한 후 답변하세요. 제공하는 키워드는 상대방이 가지고 있는 MBTI, 직업, 사용자와의 관계, 현재처한 난감한 상황에 대한 정보입니다. 사용자가 상대방에게 변명을 해야하는 상황입니다. 지금부터 최고의 변명가의 역할을 해주세요. 이 정보를 가지고 지금 사용자가 스트레스 받을 부분에 대해 제일 먼저 공감하는 말을 해주는 한 문단을 작성합니다. 첫 문단이 사용자의 스트레스를 줄여주는 중요한 부분입니다. 다음 문단을 바꿔서 적절하게 상대방에게 변명할 수 있도록 추천하는 내용은 정중하고 전문적한문단 띄워서 ""안에 작성해주세요. 우리의 목표는 상대방에 대한 신뢰를 유지하고 사용자의 스트레스를 줄이는 겁니다. 답변이 끝나면 답변이 마음에 드는지 물어봐주세요. 아니라면 추가적으로 답변이 마음에 드시나요? 혹시 다른 부분에 대해 더 이야기하고 싶은 것이 있다면 언제든 말씀해 주세요.라고 물어주세요.',
+                        "content": f"다음 정보를 기반으로 퍼스널 컬러를 추천해 주세요:\n{user_input}"
                     }
-                ],
-                model="gpt-4",
+                ]
             )
-
+            
             result = chat_completion.choices[0].message.content
+            st.write("추천된 퍼스널 컬러:")
+            st.write(result)
+            
+            # DALL-E 3를 사용하여 예시 이미지 생성 (실사같은 한국인 이미지)
+            image_prompts = [
+                f"Color recommendation for Korean person: {result}",
+                f"Outfit recommendation for Korean person: {result}",
+                f"Hairstyle recommendation for Korean person: {result}",
+                f"Integrated look for Korean person with personal color, outfit, and hairstyle: {result}"
+            ]
+            
+            images = []
+            for prompt in image_prompts:
+                response = client.images.generate(
+                    model="dall-e-3",
+                    prompt=prompt,
+                    size="512x512",
+                    quality="standard",
+                    n=3 if prompt != image_prompts[-1] else 1,
+                )
+                images.append(response.data)
+            
+            # 컬러 추천 이미지 3장 나열
+            st.write("컬러 추천:")
+            cols = st.columns(3)
+            for idx, img_data in enumerate(images[0]):
+                with cols[idx]:
+                    st.image(img_data.url, use_column_width=True)
 
-            html_content = f"""<br><div style="border: 2px solid white; padding: 10px; border-radius: 5px;"><p>{result}</p></div>"""
+            # 옷 스타일 추천 이미지 3장 나열
+            st.write("옷 스타일 추천:")
+            cols = st.columns(3)
+            for idx, img_data in enumerate(images[1]):
+                with cols[idx]:
+                    st.image(img_data.url, use_column_width=True)
 
-            with open(file_path, 'r') as file:
-                inpitbox = file.read()
-                with open(file_path, 'w') as file:
-                    pass
+            # 헤어 스타일 추천 이미지 3장 나열
+            st.write("헤어 스타일 추천:")
+            cols = st.columns(3)
+            for idx, img_data in enumerate(images[2]):
+                with cols[idx]:
+                    st.image(img_data.url, use_column_width=True)
 
-            with open(file_path, 'a') as file:
-                file.write(html_content + inpitbox)
-
-            st.experimental_rerun()
-    with right_right_column:
-        if st.button('대화 삭제'):
-            with open(file_path, 'w') as file:
-                pass
-
-    with st.expander("", expanded=True):
-        with open(file_path, 'r') as file:
-            inpitbox = file.read()
-        st.markdown(inpitbox, unsafe_allow_html=True)
+            # 통합 이미지 1장 표시
+            st.write("통합된 추천:")
+            st.image(images[3][0].url, use_column_width=True)
+            
+            # 업로드된 이미지가 있는 경우 표시
+            if uploaded_image is not None:
+                st.image(uploaded_image, caption='Uploaded Image', use_column_width=True)
