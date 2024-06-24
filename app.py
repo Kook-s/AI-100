@@ -128,7 +128,7 @@ if st.button("퍼스널 컬러 추천 받기"):
             
             st.markdown(f"""
                 <div style="padding: 20px; border-radius: 10px; margin-top: 20px; background-color: #f9f9f9;">
-                    ${result}
+                    {result}
                 </div>
             """, unsafe_allow_html=True)
             
