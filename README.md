@@ -15,6 +15,7 @@
 - AI 엔진: OpenAI GPT API
 - 배포: Streamlit Cloud or 로컬 실행
 
+# 🎨 UI
 ![변명제조AI](https://github.com/Kook-s/AI-100/blob/main/doc/img01.png)
 
 
